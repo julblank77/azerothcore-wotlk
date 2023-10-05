@@ -670,7 +670,7 @@ enum PlayerSlots
 
 #define INVENTORY_SLOT_BAG_0    255
 
-enum EquipmentSlots                                         // 19 slots
+enum EquipmentSlots : uint32                                 // 19 slots
 {
     EQUIPMENT_SLOT_START        = 0,
     EQUIPMENT_SLOT_HEAD         = 0,
@@ -2349,7 +2349,7 @@ public:
     bool IsVisibleGloballyFor(Player const* player) const;
 
     void GetInitialVisiblePackets(Unit* target);
-    void UpdateObjectVisibility(bool forced = true) override;
+    void UpdateObjectVisibility(bool forced = true, bool fromUpdate = false) override;
     void UpdateVisibilityForPlayer(bool mapChange = false);
     void UpdateVisibilityOf(WorldObject* target);
     void UpdateTriggerVisibility();
@@ -2589,6 +2589,8 @@ public:
     void UpdatePlayerSetting(std::string source, uint8 index, uint32 value);
 
     void SendSystemMessage(std::string_view msg, bool escapeCharacters = false);
+
+    void ResetSpeakTimers();
 
     std::string GetDebugInfo() const override;
 

@@ -66,6 +66,7 @@
 #include "ObjectMgr.h"
 #include "Opcodes.h"
 #include "OutdoorPvPMgr.h"
+#include "QueryHolder.h"
 #include "PetitionMgr.h"
 #include "Player.h"
 #include "PlayerDump.h"
@@ -108,10 +109,6 @@ uint32 World::m_worldLoopCounter = 0;
 float World::_maxVisibleDistanceOnContinents = DEFAULT_VISIBILITY_DISTANCE;
 float World::_maxVisibleDistanceInInstances  = DEFAULT_VISIBILITY_INSTANCE;
 float World::_maxVisibleDistanceInBGArenas   = DEFAULT_VISIBILITY_BGARENAS;
-
-int32 World::m_visibility_notify_periodOnContinents = DEFAULT_VISIBILITY_NOTIFY_PERIOD;
-int32 World::m_visibility_notify_periodInInstances = DEFAULT_VISIBILITY_NOTIFY_PERIOD;
-int32 World::m_visibility_notify_periodInBGArenas = DEFAULT_VISIBILITY_NOTIFY_PERIOD;
 
 Realm realm;
 
@@ -670,14 +667,6 @@ void World::LoadConfigSettings(bool reload)
         LOG_ERROR("server.loading", "PlayerSave.Stats.MinLevel ({}) must be in range 0..80. Using default, do not save character stats (0).", _int_configs[CONFIG_MIN_LEVEL_STAT_SAVE]);
         _int_configs[CONFIG_MIN_LEVEL_STAT_SAVE] = 0;
     }
-    _int_configs[CONFIG_INTERVAL_GRIDCLEAN] = sConfigMgr->GetOption("GridCleanUpDelay", 5 * MINUTE * IN_MILLISECONDS);
-    if (_int_configs[CONFIG_INTERVAL_GRIDCLEAN] < MIN_GRID_DELAY)
-    {
-        LOG_ERROR("server.loading", "GridCleanUpDelay (%i) must be greater %u. Use this minimal value.", _int_configs[CONFIG_INTERVAL_GRIDCLEAN], MIN_GRID_DELAY);
-        _int_configs[CONFIG_INTERVAL_GRIDCLEAN] = MIN_GRID_DELAY;
-    }
-    if (reload)
-        sMapMgr->SetGridCleanUpDelay(_int_configs[CONFIG_INTERVAL_GRIDCLEAN]);
 
     _int_configs[CONFIG_INTERVAL_MAPUPDATE] = sConfigMgr->GetOption<int32>("MapUpdateInterval", 10);
     if (_int_configs[CONFIG_INTERVAL_MAPUPDATE] < MIN_MAP_UPDATE_DELAY)
@@ -1271,10 +1260,6 @@ void World::LoadConfigSettings(bool reload)
         LOG_ERROR("server.loading", "Visibility.Distance.BGArenas can't be greater {}", MAX_VISIBILITY_DISTANCE);
         _maxVisibleDistanceInBGArenas = MAX_VISIBILITY_DISTANCE;
     }
-
-    m_visibility_notify_periodOnContinents = sConfigMgr->GetOption<int32>("Visibility.Notify.Period.OnContinents", DEFAULT_VISIBILITY_NOTIFY_PERIOD);
-    m_visibility_notify_periodInInstances = sConfigMgr->GetOption<int32>("Visibility.Notify.Period.InInstances", DEFAULT_VISIBILITY_NOTIFY_PERIOD);
-    m_visibility_notify_periodInBGArenas = sConfigMgr->GetOption<int32>("Visibility.Notify.Period.InBGArenas", DEFAULT_VISIBILITY_NOTIFY_PERIOD);
 
     ///- Load the CharDelete related config options
     _int_configs[CONFIG_CHARDELETE_METHOD]    = sConfigMgr->GetOption<int32>("CharDelete.Method", 0);
@@ -2336,6 +2321,8 @@ void World::Update(uint32 diff)
         ResetGuildCap();
     }
 
+    sScriptMgr->OnPlayerbotUpdate(diff);
+
     // pussywizard: handle auctions when the timer has passed
     if (_timers[WUPDATE_AUCTIONS].Passed())
     {
@@ -2474,6 +2461,7 @@ void World::Update(uint32 diff)
         CharacterDatabase.KeepAlive();
         LoginDatabase.KeepAlive();
         WorldDatabase.KeepAlive();
+        sScriptMgr->OnDatabasesKeepAlive();
     }
 
     {
@@ -2727,6 +2715,9 @@ void World::KickAll()
     // pussywizard: kick offline sessions
     for (SessionMap::const_iterator itr = _offlineSessions.begin(); itr != _offlineSessions.end(); ++itr)
         itr->second->KickPlayer("KickAll offline sessions");
+#ifdef MOD_PLAYERBOTS
+    sScriptMgr->OnPlayerbotLogoutBots();
+#endif
 }
 
 /// Kick (and save) all players with security level less `sec`
@@ -2819,6 +2810,8 @@ void World::ShutdownServ(uint32 time, uint32 options, uint8 exitcode, const std:
         _shutdownTimer = time;
         ShutdownMsg(true, nullptr, reason);
     }
+
+    sScriptMgr->OnPlayerbotLogoutBots();
 
     sScriptMgr->OnShutdownInitiate(ShutdownExitCode(exitcode), ShutdownMask(options));
 }
@@ -3269,6 +3262,12 @@ uint64 World::getWorldState(uint32 index) const
 void World::ProcessQueryCallbacks()
 {
     _queryProcessor.ProcessReadyCallbacks();
+    _queryHolderProcessor.ProcessReadyCallbacks();
+}
+
+SQLQueryHolderCallback& World::AddQueryHolderCallback(SQLQueryHolderCallback&& callback)
+{
+    return _queryHolderProcessor.AddCallback(std::move(callback));
 }
 
 void World::RemoveOldCorpses()

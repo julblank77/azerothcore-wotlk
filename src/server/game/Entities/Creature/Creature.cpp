@@ -365,15 +365,17 @@ void Creature::RemoveCorpse(bool setSpawnTime, bool skipVisibility)
         //SaveRespawnTime();
     }
 
+    float x, y, z, o;
+    GetRespawnPosition(x, y, z, &o);
+    SetHomePosition(x, y, z, o);
+    SetPosition(x, y, z, o);
+
+    // xinef: relocate notifier
+    m_last_notify_position.Relocate(-5000.0f, -5000.0f, -5000.0f, 0.0f);
+
     // pussywizard: if corpse was removed during falling then the falling will continue after respawn, so stop falling is such case
     if (IsFalling())
         StopMoving();
-
-    float x, y, z, o;
-    GetRespawnPosition(x, y, z, &o);
-    UpdateAllowedPositionZ(x, y, z);
-    SetHomePosition(x, y, z, o);
-    GetMap()->CreatureRelocation(this, x, y, z, o);
 }
 
 /**
@@ -1381,6 +1383,7 @@ void Creature::SaveToDB(uint32 mapid, uint8 spawnMask, uint32 phaseMask)
         m_spawnId = sObjectMgr->GenerateCreatureSpawnId();
 
     CreatureData& data = sObjectMgr->NewOrExistCreatureData(m_spawnId);
+    data.spawnId = m_spawnId;
 
     uint32 displayId = GetNativeDisplayId();
     uint32 npcflag = GetNpcFlags();
@@ -1486,9 +1489,6 @@ void Creature::SelectLevel(bool changelevel)
     uint8 minlevel = std::min(cInfo->maxlevel, cInfo->minlevel);
     uint8 maxlevel = std::max(cInfo->maxlevel, cInfo->minlevel);
     uint8 level = minlevel == maxlevel ? minlevel : urand(minlevel, maxlevel);
-
-    sScriptMgr->OnBeforeCreatureSelectLevel(cInfo, this, level);
-
     if (changelevel)
         SetLevel(level);
 
@@ -2078,7 +2078,9 @@ void Creature::Respawn(bool force)
         m_respawnedTime = GameTime::GetGameTime().count();
     }
     m_respawnedTime = GameTime::GetGameTime().count();
-    UpdateObjectVisibility();
+    // xinef: relocate notifier, fixes npc appearing in corpse position after forced respawn (instead of spawn)
+    m_last_notify_position.Relocate(-5000.0f, -5000.0f, -5000.0f, 0.0f);
+    UpdateObjectVisibility(false);
 }
 
 void Creature::ForcedDespawn(uint32 timeMSToDespawn, Seconds forceRespawnTimer)
@@ -2749,14 +2751,6 @@ bool Creature::IsSpellProhibited(SpellSchoolMask idSchoolMask) const
     }
 
     return false;
-}
-
-void Creature::ClearProhibitedSpellTimers()
-{
-    for (uint8 i = SPELL_SCHOOL_NORMAL; i < MAX_SPELL_SCHOOL; ++i)
-    {
-        m_ProhibitSchoolTime[i] = 0;
-    }
 }
 
 void Creature::_AddCreatureSpellCooldown(uint32 spell_id, uint16 categoryId, uint32 end_time)
@@ -3545,7 +3539,7 @@ bool Creature::IsMovementPreventedByCasting() const
 void Creature::SetCannotReachTarget(ObjectGuid const& cannotReach)
 {
     if (cannotReach == m_cannotReachTarget)
-    {
+{
         return;
     }
 

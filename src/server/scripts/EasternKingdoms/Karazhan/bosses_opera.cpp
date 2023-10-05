@@ -231,12 +231,20 @@ struct boss_dorothee : public ScriptedAI
         me->DespawnOrUnsummon();
     }
 
-    void SummonedCreatureDies(Creature* creature, Unit* /*killer*/) override
+    void AttackStart(Unit* who) override
     {
-        if (creature->GetEntry() == NPC_TITO)
-        {
-            Talk(SAY_DOROTHEE_TITO_DEATH);
-        }
+        if (me->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE))
+            return;
+
+        ScriptedAI::AttackStart(who);
+    }
+
+    void MoveInLineOfSight(Unit* who) override
+    {
+        if (me->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE))
+            return;
+
+        ScriptedAI::MoveInLineOfSight(who);
     }
 
     void EnterEvadeMode(EvadeReason reason) override
@@ -280,6 +288,8 @@ struct npc_tito : public ScriptedAI
 
     InstanceScript* instance;
 
+    void Reset() override { }
+
     void JustEngagedWith(Unit* /*who*/) override
     {
         _scheduler.Schedule(10s, [this](TaskContext context)
@@ -287,6 +297,18 @@ struct npc_tito : public ScriptedAI
             DoCastVictim(SPELL_YIPPING);
             context.Repeat(10s);
         });
+    }
+
+    void JustDied(Unit* /*killer*/) override
+    {
+        if (Creature* Dorothee = instance->GetCreature(DATA_DOROTHEE))
+        {
+            if (Dorothee->IsAlive())
+            {
+                Talk(SAY_DOROTHEE_TITO_DEATH, Dorothee);
+            }
+        }
+        me->DespawnOrUnsummon();
     }
 
     void UpdateAI(uint32 diff) override
@@ -329,6 +351,17 @@ struct boss_roar : public ScriptedAI
         }
     }
 
+    void Reset() override { }
+
+    void MoveInLineOfSight(Unit* who) override
+
+    {
+        if (me->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE))
+            return;
+
+        ScriptedAI::MoveInLineOfSight(who);
+    }
+
     void EnterEvadeMode(EvadeReason reason) override
     {
         ScriptedAI::EnterEvadeMode(reason);
@@ -338,6 +371,14 @@ struct boss_roar : public ScriptedAI
             instance->SetBossState(DATA_OPERA_PERFORMANCE, FAIL);
             DespawnAll(instance);
         }
+    }
+
+    void AttackStart(Unit* who) override
+    {
+        if (me->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE))
+            return;
+
+        ScriptedAI::AttackStart(who);
     }
 
     void JustEngagedWith(Unit* /*who*/) override
@@ -415,6 +456,24 @@ struct boss_strawman : public ScriptedAI
                 me->SetInCombatWithZone();
             });
         }
+    }
+
+    void Reset() override { }
+
+    void AttackStart(Unit* who) override
+    {
+        if (me->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE))
+            return;
+
+        ScriptedAI::AttackStart(who);
+    }
+
+    void MoveInLineOfSight(Unit* who) override
+    {
+        if (me->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE))
+            return;
+
+        ScriptedAI::MoveInLineOfSight(who);
     }
 
     void EnterEvadeMode(EvadeReason reason) override
@@ -540,6 +599,22 @@ struct boss_tinhead : public ScriptedAI
     void JustReachedHome() override
     {
         me->DespawnOrUnsummon();
+    }
+
+    void AttackStart(Unit* who) override
+    {
+        if (me->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE))
+            return;
+
+        ScriptedAI::AttackStart(who);
+    }
+
+    void MoveInLineOfSight(Unit* who) override
+    {
+        if (me->HasUnitFlag(UNIT_FLAG_NON_ATTACKABLE))
+            return;
+
+        ScriptedAI::MoveInLineOfSight(who);
     }
 
     void EnterEvadeMode(EvadeReason reason) override
